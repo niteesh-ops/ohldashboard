@@ -118,6 +118,19 @@
   }
   .privacy-note svg{ width:13px; height:13px; flex-shrink:0; }
 
+  /* ---------- Loading state ---------- */
+  #loadingView{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:calc(100vh - 76px); gap:14px;
+  }
+  .spinner{
+    width:34px; height:34px; border-radius:50%;
+    border:3px solid var(--grid); border-top-color:var(--brand);
+    animation:spin .8s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .loading-text{ color:var(--ink-soft); font-size:13.5px; }
+
   /* ---------- Dashboard layout ---------- */
   #dashView{ display:none; }
   .layout{ display:flex; min-height:calc(100vh - 76px); }
@@ -197,7 +210,12 @@
     <button class="reset-btn" id="resetBtn">Upload a different file</button>
   </div>
 
-  <div id="uploadView">
+  <div id="loadingView">
+    <div class="spinner"></div>
+    <div class="loading-text">Loading latest data…</div>
+  </div>
+
+  <div id="uploadView" style="display:none;">
     <div class="hero-eyebrow">No install · nothing leaves your browser</div>
     <h1 class="hero-title">Drop in the tracker.<br>See where every hub stands.</h1>
     <p class="hero-sub">Upload the P-Bar / CUSUM workbook and this page turns every tab into a live chart — center line, control limit and target, exactly as built in Excel.</p>
@@ -246,6 +264,7 @@ dropzone.addEventListener('keydown', e => { if(e.key==='Enter' || e.key===' ') f
 dropzone.addEventListener('drop', e => { if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); });
 fileInput.addEventListener('change', e => { if(e.target.files.length) handleFile(e.target.files[0]); });
 document.getElementById('resetBtn').addEventListener('click', () => {
+  document.getElementById('loadingView').style.display='none';
   document.getElementById('uploadView').style.display='flex';
   document.getElementById('dashView').style.display='none';
   document.getElementById('resetBtn').style.display='none';
@@ -365,6 +384,7 @@ function parseWorkbook(wb){
 
   if(sheetOrder.length===0){ showError('No readable sheets found in this workbook.'); return; }
 
+  document.getElementById('loadingView').style.display='none';
   document.getElementById('uploadView').style.display='none';
   document.getElementById('dashView').style.display='block';
   document.getElementById('resetBtn').style.display='inline-block';
@@ -373,6 +393,23 @@ function parseWorkbook(wb){
   const firstAnalysis = sheetOrder.find(n => workbookData[n].type==='analysis') || sheetOrder[0];
   selectSheet(firstAnalysis);
 }
+
+// ---------- Auto-load a co-located data file so visitors see the dashboard immediately ----------
+const DATA_FILE_NAME = 'data.xlsx';
+
+async function tryAutoLoad(){
+  try{
+    const res = await fetch(DATA_FILE_NAME, {cache:'no-store'});
+    if(!res.ok) throw new Error('not found');
+    const buf = await res.arrayBuffer();
+    const wb = XLSX.read(new Uint8Array(buf), {type:'array', cellDates:true});
+    parseWorkbook(wb);
+  }catch(err){
+    document.getElementById('loadingView').style.display='none';
+    document.getElementById('uploadView').style.display='flex';
+  }
+}
+tryAutoLoad();
 
 function statusForSheet(sheet){
   if(sheet.type!=='analysis') return 'gray';
